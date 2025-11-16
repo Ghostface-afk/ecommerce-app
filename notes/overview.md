@@ -1,7 +1,3 @@
-Absolutely! Here’s a clean and comprehensive `README.md` draft summarizing your **e-commerce backend** project, including **file structure, key files, packages used, and explanations**. You can copy it directly into a `.md` file.
-
----
-
 ```markdown
 # E-Commerce Backend Overview
 
@@ -22,9 +18,10 @@ This project is a Node.js + SQLite backend for an e-commerce platform, implement
 
 ## File Structure
 
-```
 
-ecommerce-backend/
+
+## ecommerce-backend
+
 ├── database.js                # SQLite DB connection + table creation
 ├── ecommerce.db               # SQLite database file
 ├── server.js                  # Entry point: mounts routes, starts server
@@ -162,9 +159,3 @@ ecommerce-backend/
   * `customer` → limited access (cart, place orders)
 * Environment variables optional for now (`.env` not required if local testing).
 * SQLite used for simplicity; can switch to MySQL/PostgreSQL if scaling.
-
----
-
-```
-
-
