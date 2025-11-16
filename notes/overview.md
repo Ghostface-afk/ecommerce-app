@@ -1,196 +1,170 @@
-
-# **E-Commerce Backend Overview**
-
-This document explains the **structure, functionality, and flow** of the e-commerce backend.
+Absolutely! Here’s a clean and comprehensive `README.md` draft summarizing your **e-commerce backend** project, including **file structure, key files, packages used, and explanations**. You can copy it directly into a `.md` file.
 
 ---
 
-## **1️⃣ File Structure**
+```markdown
+# E-Commerce Backend Overview
+
+This project is a Node.js + SQLite backend for an e-commerce platform, implementing user management, product/catalog management, cart, orders, payments, and role-based access. It’s designed for learning and demonstration purposes.
+
+---
+
+## Table of Contents
+
+- [File Structure](#file-structure)
+- [Key Files & Their Roles](#key-files--their-roles)
+- [Packages Used](#packages-used)
+- [Setup & Running](#setup--running)
+- [API Testing](#api-testing)
+- [Notes](#notes)
+
+---
+
+## File Structure
 
 ```
+
 ecommerce-backend/
-├── database.js           # SQLite database connection & table creation
-├── ecommerce.db          # SQLite database file
-├── server.js             # Entry point: mounts routes, starts server
-├── package.json          # Node.js project info & dependencies
-├── package-lock.json     # Dependency lock file
-├── node_modules/         # Installed Node modules
-├── utils/                # Utility functions
-│   └── auth.js           # JWT authentication & role-based access
-├── models/               # Database interaction logic
-│   ├── userModel.js
-│   ├── productModel.js
-│   ├── categoryModel.js
-│   ├── cartModel.js
-│   ├── orderModel.js
-│   └── paymentModel.js
-└── routes/               # Express routes (API endpoints)
-    ├── users.js
-    ├── products.js
-    ├── categories.js
-    ├── cartRoutes.js
-    ├── orderRoutes.js
-    └── adminRoutes.js
-```
+├── database.js                # SQLite DB connection + table creation
+├── ecommerce.db               # SQLite database file
+├── server.js                  # Entry point: mounts routes, starts server
+├── package.json               # Node.js project info & dependencies
+├── package-lock.json          # Dependency lock file
+├── node_modules/              # Installed Node modules
+├── utils/                     # Utility functions
+│   └── auth.js                # JWT authentication & role-based access
+├── models/                    # Database interaction logic
+│   ├── userModel.js           # User CRUD operations
+│   ├── productModel.js        # Product CRUD operations
+│   ├── categoryModel.js       # Category CRUD operations
+│   ├── cartModel.js           # Cart management (add, remove, update)
+│   ├── orderModel.js          # Orders and order items
+│   └── paymentModel.js        # Payments logic
+└── routes/                    # Express API routes
+├── users.js               # User registration, login, profile, admin actions
+├── products.js            # Product CRUD endpoints
+├── categories.js          # Category management
+├── cartRoutes.js          # Cart endpoints
+├── orderRoutes.js         # Orders endpoints (place order, view orders)
+└── adminRoutes.js         # Admin management: products, categories, inventory
+
+````
 
 ---
 
-## **2️⃣ Responsibilities**
+## Key Files & Their Roles
 
-| File / Folder     | Purpose                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------- |
-| **server.js**     | Mounts routes, enables JSON parsing and CORS, starts the server.                                      |
-| **database.js**   | Connects to SQLite, defines tables: Users, Products, Categories, Cart, Orders, Order_Items, Payments. |
-| **utils/auth.js** | JWT token generation, verification, role-based access, password hashing.                              |
-| **models/**       | Database operations for each entity: Users, Products, Categories, Cart, Orders, Payments.             |
-| **routes/**       | Express endpoints, modular for user, admin, cart, orders, products, categories.                       |
+### `server.js`
+- Main entry point of the backend.
+- Configures Express server.
+- Mounts all routes (`/users`, `/products`, `/cart`, `/orders`, `/admin`).
+- Starts the server on a specified port.
 
----
+### `database.js`
+- Connects to SQLite database (`ecommerce.db`).
+- Creates necessary tables if they don’t exist:
+  - Users, Products, Categories, Cart, Orders, Order_Items, Payments, Shipping, Reviews, Wishlist, Coupons, Inventory_Logs.
 
-## **3️⃣ Route Overview**
+### `utils/auth.js`
+- Handles authentication and authorization.
+- Functions:
+  - `hashPassword` → bcrypt hashing.
+  - `comparePassword` → compare plaintext to hashed password.
+  - `generateToken` → create JWT token.
+  - `verifyToken` → middleware to validate JWT.
+  - `authorizeRoles` → middleware to enforce role-based access.
 
-### **User Routes**
+### `models/`
+- Contains database logic for each feature.
+- Examples:
+  - `userModel.js` → create user, get by email/id, update role.
+  - `productModel.js` → create/update/delete product, get all or by ID.
+  - `cartModel.js` → add, update, remove items, clear cart.
+  - `orderModel.js` → create orders, add items, get orders by user/admin.
+  - `paymentModel.js` → create/update payment records.
 
-* `/users` → Register/login users, fetch profile, role-based access.
-
-### **Product Routes**
-
-* `/products` → List all products, get product details.
-
-### **Category Routes**
-
-* `/categories` → List categories, get category details.
-
-### **Cart Routes**
-
-* `/cart` → View, add, update, remove, clear cart items.
-
-### **Order Routes**
-
-* `/orders` → Place orders, view user orders, get order details.
-
-### **Admin Routes**
-
-* `/admin/products` → Add/update/delete products, manage stock.
-* `/admin/categories` → Add/update/delete categories.
-* `/admin/orders` → View all orders.
-
----
-
-## **4️⃣ Data Flow Overview**
-
-```
-User (Frontend)
-  └─> /users/login → verifyToken → req.user
-
-User adds items → /cart/add → cartModel → Cart table
-
-User places order → /orders/place
-  ├─> Fetch cart items → Cart table
-  ├─> Create order → Orders table
-  ├─> Insert order items → Order_Items table
-  ├─> Create payment → Payments table
-  └─> Clear cart → Cart table
-
-Admin routes → /api/admin
-  ├─> Manage products → Products table
-  ├─> Manage categories → Categories table
-  └─> View all orders → Orders + Order_Items + Users
-```
+### `routes/`
+- Maps HTTP requests to model actions.
+- Examples:
+  - `users.js` → `/register`, `/login`, `/me`, `/` (admin view), `/id/role` (change role)
+  - `products.js` → public GET endpoints + admin POST/PUT/DELETE
+  - `cartRoutes.js` → `/add`, `/update`, `/remove/:id`, `/clear`
+  - `orderRoutes.js` → `/place`, `/my`, `/:orderId` (user/admin views)
+  - `adminRoutes.js` → manage products, categories, inventory, view all orders
 
 ---
 
-## **5️⃣ Security & Access**
+## Packages Used
 
-* **JWT Authentication:** Protects all routes.
-* **Role-based Authorization:**
-
-  * `admin` → full access (products, categories, orders)
-  * `staff` → partial access if implemented
-  * `user` → access only to own cart/orders
-* **Passwords hashed** with bcrypt before storing.
-* Payments can be **simulated** (pending/completed) for presentation.
-* **Note:** JWT secret is currently hardcoded for demo purposes. No `.env` required.
-
----
-
-## **6️⃣ Interaction Flow**
-
-```
-Frontend → Express Routes → Models → SQLite Database
-
-Example: Placing an order
-POST /orders/place
-  └─> orderRoutes.js
-      ├─> orderModel.js
-      ├─> paymentModel.js
-      └─> cartModel.js
-          └─> database.js → SQLite tables
-```
-
-* **Routes** handle request/response
-* **Models** handle database logic
-* **Utils** handle authentication/security
+| Package       | Purpose |
+|---------------|---------|
+| `express`     | Web framework for API routes |
+| `cors`        | Cross-Origin Resource Sharing |
+| `body-parser` | Parse JSON request bodies (optional if using Express 4.16+) |
+| `sqlite3`     | SQLite database |
+| `bcryptjs`    | Password hashing |
+| `jsonwebtoken`| JWT creation and verification |
+| `dotenv`      | Environment variable management |
 
 ---
 
-## **7️⃣ Team Setup Instructions**
+## Setup & Running
 
-1. **Clone the repository**
-
+1. **Clone repository**:
    ```bash
-   git clone <repo-url>
-   cd ecommerce-backend
-   ```
+   git clone <repo_url>
+   cd ecommerce-app
+````
 
-2. **Install dependencies**
+2. **Install dependencies**:
 
    ```bash
    npm install
    ```
 
-3. **Start the server**
+3. **Start the server**:
 
    ```bash
    node server.js
    ```
 
-   * Default port: `3000`
-   * If port 3000 is busy, server falls back to `5000`.
-
-4. **Database**
-
-   * SQLite file `ecommerce.db` is included.
-   * Tables are initialized automatically via `database.js`.
-
-5. **No .env required for demo/presentation**
-
-   * JWT secret is hardcoded (`utils/auth.js`).
-   * Passwords are hashed via bcrypt.
-
-6. **Testing API endpoints**
-
-   * Use Postman or browser for GET requests.
-   * Example: `GET http://localhost:3000/products`
-
-7. **Workflow**
-
-   * User: register → login → add to cart → place order
-   * Admin: manage products/categories → view all orders
+   * Server runs on `http://localhost:5000` (default).
+   * Ensure database (`ecommerce.db`) is created automatically.
 
 ---
 
-## **8️⃣ Optional Mermaid Diagram**
+## API Testing
 
-```mermaid
-flowchart LR
-  User -->|Login| Auth
-  User -->|Add to cart| Cart
-  Cart -->|Place order| Orders
-  Orders --> Payments
-  Admin --> Products
-  Admin --> Categories
-  Admin --> Orders
+* Use **Postman** or **cURL** to test endpoints.
+* Example: Register a user
+
+  ```bash
+  curl -X POST http://localhost:5000/users/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Lawrence",
+    "email": "lawrence@example.com",
+    "password": "mypassword",
+    "phone": "0712345678",
+    "address": "Nairobi, Kenya"
+  }'
+  ```
+* You can also test login, add products, add to cart, place orders, etc.
+
+---
+
+## Notes
+
+* No frontend included; backend can be tested via Postman or curl.
+* Role-based access enforced:
+
+  * `admin` → full management
+  * `customer` → limited access (cart, place orders)
+* Environment variables optional for now (`.env` not required if local testing).
+* SQLite used for simplicity; can switch to MySQL/PostgreSQL if scaling.
+
+---
+
 ```
 
 
