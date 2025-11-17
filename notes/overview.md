@@ -159,3 +159,107 @@ This project is a Node.js + SQLite backend for an e-commerce platform, implement
   * `customer` → limited access (cart, place orders)
 * Environment variables optional for now (`.env` not required if local testing).
 * SQLite used for simplicity; can switch to MySQL/PostgreSQL if scaling.
+
+Perfect! If you want the admin to upload images using **Firebase Storage** (Option 1), here’s a full guide you can include in your project README or follow for your admin workflow.
+
+---
+
+# 📝 Admin Image Upload Instructions using Firebase Storage
+
+## 1️⃣ Set up Firebase
+
+1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
+2. Go to **Storage** → **Get started** → select your location → click **Done**.
+3. Go to **Project Settings** → **Service Accounts** → **Generate new private key**.
+   This will download a JSON file (e.g., `firebaseAdminKey.json`) — keep it secure.
+
+---
+
+## 2️⃣ Add Firebase Admin SDK to your backend
+
+Install the Firebase Admin package:
+
+```bash
+npm install firebase-admin
+```
+
+Create a `firebaseAdmin.js` file in your backend root:
+
+```js
+// firebaseAdmin.js
+const admin = require('firebase-admin');
+const serviceAccount = require('./firebaseAdminKey.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: 'YOUR_PROJECT_ID.appspot.com' // replace with your Firebase project ID
+});
+
+const bucket = admin.storage().bucket();
+
+module.exports = bucket;
+```
+
+---
+
+## 3️⃣ Upload images manually to Firebase
+
+1. Go to **Storage** → **Files** → **Upload files**
+2. Select the image you want (e.g., `laptop1.png`)
+3. After upload, click the file → **File URL** → copy it.
+
+---
+
+## 4️⃣ Add image URL to product
+
+When creating a product via your backend (POST `/products`), paste the **Firebase Storage file URL** in the `image_url` field:
+
+```json
+{
+  "name": "Laptop XYZ",
+  "description": "High-performance laptop",
+  "price": 1200,
+  "category_id": 2,
+  "stock_quantity": 10,
+  "image_url": "https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT_ID.appspot.com/o/laptop1.png?alt=media"
+}
+```
+
+The backend will store the URL in the database — no file handling needed.
+
+---
+
+## 5️⃣ Optional: Make Firebase Storage Public (if needed)
+
+By default, Firebase Storage is **restricted**.
+To make images accessible to everyone:
+
+1. Go to **Storage → Rules**
+2. Change the rules temporarily for public read:
+
+```txt
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;  // anyone can read
+      allow write: if request.auth != null;  // only authenticated users can write
+    }
+  }
+}
+```
+
+⚠️ Only use public read for testing/demo purposes.
+For production, restrict access and generate **signed URLs**.
+
+---
+
+## 6️⃣ Workflow Summary for Admin
+
+1. Upload image to Firebase Storage.
+2. Copy the URL provided by Firebase.
+3. Paste the URL in the product creation form.
+4. Backend stores the URL — frontend can use it to display images.
+
+---
+✅ This approach keeps your backend simple and avoids file storage management.
+---
