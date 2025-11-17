@@ -1,47 +1,94 @@
-const db = require('../database');
+const db = require('../database'); // use your SQLite db
+const ImageKit = require('imagekit');
+
+// Initialize ImageKit
+const imagekit = new ImageKit({
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY || 'YOUR_PUBLIC_KEY',
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY || 'YOUR_PRIVATE_KEY',
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/YOUR_ID/'
+});
 
 const Product = {
-  create: ({ name, description, category_id, price, stock_quantity, image_url, status }) => {
-    return new Promise((resolve, reject) => {
-      const sql = `INSERT INTO products (name, description, category_id, price, stock_quantity, image_url, status) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-      db.run(sql, [name, description, category_id, price, stock_quantity, image_url, status || 'active'], function(err) {
-        if (err) return reject(err);
-        resolve({ product_id: this.lastID, name, description, category_id, price, stock_quantity, image_url, status });
-      });
-    });
-  },
 
   getAll: () => {
     return new Promise((resolve, reject) => {
-      db.all(`SELECT * FROM products`, [], (err, rows) => (err ? reject(err) : resolve(rows)));
+      db.all(`SELECT * FROM products`, [], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
     });
   },
 
   getById: (id) => {
     return new Promise((resolve, reject) => {
-      db.get(`SELECT * FROM products WHERE product_id = ?`, [id], (err, row) => (err ? reject(err) : resolve(row)));
+      db.get(`SELECT * FROM products WHERE id = ?`, [id], (err, row) => {
+        if (err) return reject(err);
+        resolve(row);
+      });
     });
   },
 
-  update: (id, data) => {
-    const { name, description, category_id, price, stock_quantity, image_url, status } = data;
+  create: async ({ name, description = null, category_id = null, price, stock_quantity = 0, image_file = null, status = 'active' }) => {
     return new Promise((resolve, reject) => {
-      db.run(`UPDATE products SET name=?, description=?, category_id=?, price=?, stock_quantity=?, image_url=?, status=? WHERE product_id=?`,
-        [name, description, category_id, price, stock_quantity, image_url, status, id], function(err) {
+      const insertProduct = (image_url) => {
+        const sql = `
+          INSERT INTO products (name, description, category_id, price, stock_quantity, image_url, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        db.run(sql, [name, description, category_id, price, stock_quantity, image_url, status], function(err) {
           if (err) return reject(err);
-          resolve({ updated: this.changes });
+          resolve({ id: this.lastID, name, description, category_id, price, stock_quantity, image_url, status });
         });
+      };
+
+      if (image_file) {
+        imagekit.upload({ file: image_file, fileName: name, folder: "/products" }, (err, result) => {
+          if (err) return reject(err);
+          insertProduct(result.url);
+        });
+      } else {
+        insertProduct(null);
+      }
+    });
+  },
+
+  update: (id, { name, description, category_id, price, stock_quantity, image_file, status }) => {
+    return new Promise((resolve, reject) => {
+      const updateDB = (image_url) => {
+        const sql = `
+          UPDATE products
+          SET name=?, description=?, category_id=?, price=?, stock_quantity=?, image_url=?, status=?
+          WHERE id=?
+        `;
+        db.run(sql, [name, description, category_id, price, stock_quantity, image_url, status, id], function(err) {
+          if (err) return reject(err);
+          resolve({ id, name, description, category_id, price, stock_quantity, image_url, status });
+        });
+      };
+
+      if (image_file) {
+        imagekit.upload({ file: image_file, fileName: name, folder: "/products" }, (err, result) => {
+          if (err) return reject(err);
+          updateDB(result.url);
+        });
+      } else {
+        db.get(`SELECT image_url FROM products WHERE id = ?`, [id], (err, row) => {
+          if (err) return reject(err);
+          updateDB(row ? row.image_url : null);
+        });
+      }
     });
   },
 
   delete: (id) => {
     return new Promise((resolve, reject) => {
-      db.run(`DELETE FROM products WHERE product_id=?`, [id], function(err) {
+      db.run(`DELETE FROM products WHERE id = ?`, [id], function(err) {
         if (err) return reject(err);
         resolve({ deleted: this.changes });
       });
     });
   }
+
 };
 
 module.exports = Product;
