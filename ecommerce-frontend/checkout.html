@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - E-Commerce Store</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-logo">🛒 ShopEasy</h1>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="products.html">Products</a>
+                <a href="cart.html">Cart <span id="cart-count">0</span></a>
+                <a href="orders.html">Orders</a>
+                <a href="admin.html" id="admin-link" style="display:none;">Admin</a>
+                <a href="#" id="auth-link">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="checkout-container">
+            <h2>Checkout</h2>
+            
+            <div class="checkout-steps">
+                <div class="step active">1. Review Order</div>
+                <div class="step">2. Payment</div>
+                <div class="step">3. Confirmation</div>
+            </div>
+            
+            <div id="checkout-summary">
+                <!-- Order summary will be loaded here -->
+            </div>
+            
+            <form id="checkout-form">
+                <h3>Payment Information</h3>
+                <div class="form-group">
+                    <label for="payment-method">Payment Method:</label>
+                    <select id="payment-method" required>
+                        <option value="">Select Payment Method</option>
+                        <option value="card">Credit Card</option>
+                        <option value="paypal">PayPal</option>
+                        <option value="bank">Bank Transfer</option>
+                    </select>
+                </div>
+                
+                <div id="card-details" style="display:none;">
+                    <div class="form-group">
+                        <label for="card-number">Card Number:</label>
+                        <input type="text" id="card-number" placeholder="1234 5678 9012 3456">
+                    </div>
+                    <div class="form-group">
+                        <label for="expiry-date">Expiry Date:</label>
+                        <input type="text" id="expiry-date" placeholder="MM/YY">
+                    </div>
+                    <div class="form-group">
+                        <label for="cvv">CVV:</label>
+                        <input type="text" id="cvv" placeholder="123">
+                    </div>
+                </div>
+                
+                <div class="checkout-actions">
+                    <button type="button" onclick="window.location.href='cart.html'" class="btn btn-secondary">
+                        ← Back to Cart
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Place Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let currentUser = null;
+        let cart = [];
+
+        // Check authentication and load user info
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const userData = localStorage.getItem('user');
+            
+            if (token && userData) {
+                currentUser = JSON.parse(userData);
+                updateNavigation();
+                loadCart();
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function updateNavigation() {
+            const authLink = document.getElementById('auth-link');
+            const adminLink = document.getElementById('admin-link');
+            
+            if (currentUser) {
+                authLink.textContent = 'Logout';
+                authLink.href = '#';
+                authLink.onclick = logout;
+                
+                if (currentUser.role === 'admin') {
+                    adminLink.style.display = 'block';
+                }
+            } else {
+                authLink.textContent = 'Login';
+                authLink.href = 'login.html';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+
+        // Load cart and display summary
+        async function loadCart() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/cart`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    cart = await response.json();
+                    displayCheckoutSummary();
+                    updateCartCount();
+                }
+            } catch (error) {
+                console.error('Failed to load cart:', error);
+            }
+        }
+
+        function displayCheckoutSummary() {
+            const summary = document.getElementById('checkout-summary');
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            if (!cart || cart.length === 0) {
+                summary.innerHTML = '<p>Your cart is empty. <a href="products.html">Continue shopping</a></p>';
+                return;
+            }
+            
+            summary.innerHTML = `
+                <h3>Order Summary</h3>
+                <div class="order-items">
+                    ${cart.map(item => `
+                        <div class="order-item">
+                            <div class="item-info">
+                                <h4>${item.name}</h4>
+                                <p>Quantity: ${item.quantity}</p>
+                            </div>
+                            <div class="item-price">$${(item.price * item.quantity).toFixed(2)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="order-total">
+                    <div class="total-line">
+                        <span>Subtotal:</span>
+                        <span>$${total.toFixed(2)}</span>
+                    </div>
+                    <div class="total-line">
+                        <span>Shipping:</span>
+                        <span>$0.00</span>
+                    </div>
+                    <div class="total-line">
+                        <span>Tax:</span>
+                        <span>$${(total * 0.1).toFixed(2)}</span>
+                    </div>
+                    <div class="total-line grand-total">
+                        <span><strong>Total:</strong></span>
+                        <span><strong>$${(total * 1.1).toFixed(2)}</strong></span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateCartCount() {
+            const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+            document.getElementById('cart-count').textContent = count;
+        }
+
+        // Payment method change handler
+        document.getElementById('payment-method').addEventListener('change', function() {
+            const cardDetails = document.getElementById('card-details');
+            if (this.value === 'card') {
+                cardDetails.style.display = 'block';
+            } else {
+                cardDetails.style.display = 'none';
+            }
+        });
+
+        // Checkout form submission
+        document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const paymentMethod = document.getElementById('payment-method').value;
+            const token = localStorage.getItem('token');
+            
+            if (!paymentMethod) {
+                alert('Please select a payment method');
+                return;
+            }
+            
+            if (cart.length === 0) {
+                alert('Your cart is empty');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/orders/place`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ payment_method: paymentMethod })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show success message
+                    document.querySelector('.checkout-container').innerHTML = `
+                        <div class="order-success">
+                            <h2>🎉 Order Placed Successfully!</h2>
+                            <div class="success-details">
+                                <p><strong>Order ID:</strong> ${data.order_id}</p>
+                                <p><strong>Total Amount:</strong> $${data.total}</p>
+                                <p><strong>Queue Position:</strong> ${data.queue_position || 'Processing'}</p>
+                            </div>
+                            <p>Thank you for your purchase! You will receive a confirmation email shortly.</p>
+                            <div class="success-actions">
+                                <button onclick="window.location.href='orders.html'" class="btn btn-primary">
+                                    View My Orders
+                                </button>
+                                <button onclick="window.location.href='products.html'" class="btn btn-secondary">
+                                    Continue Shopping
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update steps
+                    document.querySelectorAll('.step')[2].classList.add('active');
+                    
+                } else {
+                    alert('Order failed: ' + data.message);
+                }
+            } catch (error) {
+                alert('Checkout failed: ' + error.message);
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+        });
+    </script>
+
+    <style>
+        .checkout-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .checkout-steps::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #ddd;
+            z-index: 1;
+        }
+
+        .step {
+            text-align: center;
+            flex: 1;
+            position: relative;
+            z-index: 2;
+            background: white;
+            padding: 0.5rem;
+        }
+
+        .step.active {
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .step::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            background: #ddd;
+            border-radius: 50%;
+            display: block;
+            margin: 0 auto 0.5rem;
+        }
+
+        .step.active::before {
+            background: #3498db;
+        }
+
+        .order-items {
+            margin: 1rem 0;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-total {
+            border-top: 2px solid #ddd;
+            padding-top: 1rem;
+            margin-top: 1rem;
+        }
+
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+        }
+
+        .grand-total {
+            border-top: 1px solid #ddd;
+            padding-top: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .form-group {
+            margin: 1rem 0;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .checkout-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .order-success {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .success-details {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+
+        .success-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+    </style>
+</body>
+</html>

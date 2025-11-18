@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - E-Commerce Store</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-logo">🛒 ShopEasy</h1>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="products.html" class="active">Products</a>
+                <a href="cart.html">Cart <span id="cart-count">0</span></a>
+                <a href="orders.html">Orders</a>
+                <a href="admin.html" id="admin-link" style="display:none;">Admin</a>
+                <a href="#" id="auth-link">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h2>Our Products</h2>
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="Search products...">
+                <button onclick="searchProducts()">Search</button>
+            </div>
+        </div>
+        
+        <div class="products-grid" id="products-grid">
+            <!-- Products will be loaded here -->
+        </div>
+        
+        <!-- Data Structures Info -->
+        <div class="data-structures-info">
+            <h3>Data Structures in Action</h3>
+            <div class="ds-cards">
+                <div class="ds-card">
+                    <h4>🔄 Stack (Undo Actions)</h4>
+                    <p>Track your cart actions for easy undo</p>
+                    <div id="stack-info">Stack: 0 actions</div>
+                </div>
+                <div class="ds-card">
+                    <h4>📋 Queue (Order Processing)</h4>
+                    <p>Orders processed in FIFO order</p>
+                    <div id="queue-info">Queue: 0 orders</div>
+                </div>
+                <div class="ds-card">
+                    <h4>⚡ Hash Table (Product Cache)</h4>
+                    <p>Fast product lookups with caching</p>
+                    <div id="cache-info">Cache: Active</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="product-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modal-product-details"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let currentUser = null;
+        let products = [];
+
+        // Check authentication and load user info
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const userData = localStorage.getItem('user');
+            
+            if (token && userData) {
+                currentUser = JSON.parse(userData);
+                updateNavigation();
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function updateNavigation() {
+            const authLink = document.getElementById('auth-link');
+            const adminLink = document.getElementById('admin-link');
+            
+            if (currentUser) {
+                authLink.textContent = 'Logout';
+                authLink.href = '#';
+                authLink.onclick = logout;
+                
+                if (currentUser.role === 'admin') {
+                    adminLink.style.display = 'block';
+                }
+            } else {
+                authLink.textContent = 'Login';
+                authLink.href = 'login.html';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+
+        // Products functions
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_BASE}/products`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    products = data.products || data;
+                    displayProducts(products);
+                    loadDataStructuresInfo();
+                }
+            } catch (error) {
+                console.error('Failed to load products:', error);
+            }
+        }
+
+        function displayProducts(productsToDisplay) {
+            const grid = document.getElementById('products-grid');
+            
+            if (!productsToDisplay || productsToDisplay.length === 0) {
+                grid.innerHTML = '<p>No products found.</p>';
+                return;
+            }
+            
+            grid.innerHTML = productsToDisplay.map(product => `
+                <div class="product-card" onclick="showProductDetails(${product.product_id})">
+                    ${product.image_url ? 
+                        `<img src="${product.image_url}" alt="${product.name}" class="product-image">` : 
+                        '<div class="product-image" style="background:#eee;display:flex;align-items:center;justify-content:center;">No Image</div>'
+                    }
+                    <h3>${product.name}</h3>
+                    <p>${product.description || 'No description available'}</p>
+                    <div class="product-price">$${product.price}</div>
+                    <div class="product-actions">
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); addToCart(${product.product_id})">
+                            Add to Cart
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function searchProducts() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = products.filter(product => 
+                product.name.toLowerCase().includes(query) ||
+                (product.description && product.description.toLowerCase().includes(query))
+            );
+            displayProducts(filtered);
+        }
+
+        async function addToCart(productId) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/cart/add`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ product_id: productId, quantity: 1 })
+                });
+                
+                if (response.ok) {
+                    updateCartCount();
+                    alert('Product added to cart!');
+                } else {
+                    const data = await response.json();
+                    alert('Failed to add to cart: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Failed to add to cart:', error);
+                alert('Failed to add to cart. Please try again.');
+            }
+        }
+
+        async function updateCartCount() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/cart`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const cart = await response.json();
+                    const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+                    document.getElementById('cart-count').textContent = count;
+                }
+            } catch (error) {
+                console.error('Failed to load cart count:', error);
+            }
+        }
+
+        async function showProductDetails(productId) {
+            try {
+                const response = await fetch(`${API_BASE}/products/${productId}`);
+                if (response.ok) {
+                    const product = (await response.json()).product;
+                    
+                    const modal = document.getElementById('product-modal');
+                    const content = document.getElementById('modal-product-details');
+                    
+                    content.innerHTML = `
+                        <h2>${product.name}</h2>
+                        ${product.image_url ? 
+                            `<img src="${product.image_url}" alt="${product.name}" style="width:100%;max-height:300px;object-fit:cover;margin:1rem 0;">` : 
+                            ''
+                        }
+                        <p><strong>Description:</strong> ${product.description || 'No description available'}</p>
+                        <p><strong>Price:</strong> $${product.price}</p>
+                        <p><strong>Stock:</strong> ${product.stock_quantity} available</p>
+                        <button class="btn btn-primary" onclick="addToCart(${product.product_id}); closeModal()">
+                            Add to Cart
+                        </button>
+                    `;
+                    
+                    modal.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to load product details:', error);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('product-modal').style.display = 'none';
+        }
+
+        // Data Structures Info
+        async function loadDataStructuresInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/data-structures/status`);
+                if (response.ok) {
+                    const status = await response.json();
+                    
+                    document.getElementById('stack-info').textContent = 
+                        `Stack: ${status.user_action_stack.size} actions`;
+                    
+                    document.getElementById('queue-info').textContent = 
+                        `Queue: ${status.order_processing_queue.size} orders`;
+                    
+                    document.getElementById('cache-info').textContent = 
+                        `Cache: ${status.product_cache.has_all_products ? 'Active' : 'Inactive'}`;
+                }
+            } catch (error) {
+                console.error('Failed to load data structures info:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            loadProducts();
+            updateCartCount();
+            
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const modal = document.getElementById('product-modal');
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            }
+            
+            // Close modal with X button
+            document.querySelector('.close').addEventListener('click', closeModal);
+        });
+    </script>
+</body>
+</html>

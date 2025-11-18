@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - E-Commerce Store</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-logo">🛒 ShopEasy</h1>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="products.html">Products</a>
+                <a href="cart.html">Cart <span id="cart-count">0</span></a>
+                <a href="orders.html" class="active">Orders</a>
+                <a href="admin.html" id="admin-link" style="display:none;">Admin</a>
+                <a href="#" id="auth-link">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>My Orders</h2>
+        
+        <div class="orders-filter">
+            <label for="status-filter">Filter by status:</label>
+            <select id="status-filter" onchange="filterOrders()">
+                <option value="all">All Orders</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
+        
+        <div id="orders-list">
+            <!-- Orders will be loaded here -->
+        </div>
+        
+        <div id="loading-message" style="text-align: center; padding: 2rem;">
+            Loading your orders...
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div id="order-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close">&times;</span>
+            <div id="modal-order-details"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        let currentUser = null;
+        let allOrders = [];
+
+        // Check authentication and load user info
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            const userData = localStorage.getItem('user');
+            
+            if (token && userData) {
+                currentUser = JSON.parse(userData);
+                updateNavigation();
+                loadOrders();
+            } else {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function updateNavigation() {
+            const authLink = document.getElementById('auth-link');
+            const adminLink = document.getElementById('admin-link');
+            
+            if (currentUser) {
+                authLink.textContent = 'Logout';
+                authLink.href = '#';
+                authLink.onclick = logout;
+                
+                if (currentUser.role === 'admin') {
+                    adminLink.style.display = 'block';
+                }
+            } else {
+                authLink.textContent = 'Login';
+                authLink.href = 'login.html';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+
+        // Orders functions
+        async function loadOrders() {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`${API_BASE}/orders/my`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    allOrders = await response.json();
+                    displayOrders(allOrders);
+                    document.getElementById('loading-message').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load orders:', error);
+                document.getElementById('loading-message').innerHTML = 
+                    '<p>Failed to load orders. Please try again later.</p>';
+            }
+        }
+
+        function displayOrders(orders) {
+            const container = document.getElementById('orders-list');
+            
+            if (!orders || orders.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No orders found</h3>
+                        <p>You haven't placed any orders yet.</p>
+                        <a href="products.html" class="btn btn-primary">Start Shopping</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort orders by date (newest first)
+            orders.sort((a, b) => new Date(b.order_date) - new Date(a.order_date));
+            
+            container.innerHTML = orders.map(order => `
+                <div class="cart-item order-item ${order.status}">
+                    <div class="cart-item-info">
+                        <h4>Order #${order.order_id}</h4>
+                        <p class="order-date">Date: ${new Date(order.order_date).toLocaleDateString()}</p>
+                        <p class="order-total">Total: $${order.total_amount}</p>
+                        <p class="order-status">
+                            Status: <span class="status-badge ${order.status}">${order.status}</span>
+                        </p>
+                    </div>
+                    <div class="order-actions">
+                        <button class="btn btn-primary" onclick="viewOrderDetails(${order.order_id})">
+                            View Details
+                        </button>
+                        ${order.status === 'pending' ? `
+                            <button class="btn btn-danger" onclick="cancelOrder(${order.order_id})">
+                                Cancel Order
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterOrders() {
+            const status = document.getElementById('status-filter').value;
+            
+            if (status === 'all') {
+                displayOrders(allOrders);
+            } else {
+                const filtered = allOrders.filter(order => order.status === status);
+                displayOrders(filtered);
+            }
+        }
+
+        async function viewOrderDetails(orderId) {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`${API_BASE}/orders/${orderId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const details = await response.json();
+                    showOrderModal(details, orderId);
+                }
+            } catch (error) {
+                console.error('Failed to load order details:', error);
+                alert('Failed to load order details');
+            }
+        }
+
+        function showOrderModal(details, orderId) {
+            const modal = document.getElementById('order-modal');
+            const content = document.getElementById('modal-order-details');
+            
+            if (!details || details.length === 0) {
+                content.innerHTML = '<p>No order details found.</p>';
+                modal.style.display = 'block';
+                return;
+            }
+            
+            const order = details[0]; // First item contains order info
+            const total = details.reduce((sum, item) => sum + (item.price_at_purchase * item.quantity), 0);
+            
+            content.innerHTML = `
+                <h2>Order #${orderId} Details</h2>
+                <div class="order-info">
+                    <p><strong>Order Date:</strong> ${new Date(order.order_date).toLocaleString()}</p>
+                    <p><strong>Status:</strong> <span class="status-badge ${order.status}">${order.status}</span></p>
+                    <p><strong>Total Amount:</strong> $${total.toFixed(2)}</p>
+                </div>
+                
+                <h3>Order Items</h3>
+                <div class="order-items-list">
+                    ${details.map(item => `
+                        <div class="order-item-detail">
+                            <div class="item-info">
+                                <h4>${item.product_name}</h4>
+                                <p>Quantity: ${item.quantity}</p>
+                                <p>Price: $${item.price_at_purchase} each</p>
+                            </div>
+                            <div class="item-total">
+                                $${(item.price_at_purchase * item.quantity).toFixed(2)}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="order-summary">
+                    <div class="summary-total">
+                        <strong>Total: $${total.toFixed(2)}</strong>
+                    </div>
+                </div>
+            `;
+            
+            modal.style.display = 'block';
+        }
+
+        async function cancelOrder(orderId) {
+            if (!confirm('Are you sure you want to cancel this order?')) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                // Note: You'll need to add a cancel order endpoint in your backend
+                const response = await fetch(`${API_BASE}/orders/${orderId}/cancel`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert('Order cancelled successfully');
+                    loadOrders(); // Reload orders
+                } else {
+                    const data = await response.json();
+                    alert('Failed to cancel order: ' + data.message);
+                }
+            } catch (error) {
+                alert('Failed to cancel order: ' + error.message);
+            }
+        }
+
+        function updateCartCount() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            
+            fetch(`${API_BASE}/cart`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => response.ok ? response.json() : [])
+            .then(cart => {
+                const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+                document.getElementById('cart-count').textContent = count;
+            })
+            .catch(error => console.error('Failed to load cart count:', error));
+        }
+
+        function closeModal() {
+            document.getElementById('order-modal').style.display = 'none';
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            updateCartCount();
+            
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const modal = document.getElementById('order-modal');
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            }
+            
+            // Close modal with X button
+            document.querySelector('#order-modal .close').addEventListener('click', closeModal);
+        });
+    </script>
+
+    <style>
+        .orders-filter {
+            margin: 1rem 0 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .orders-filter select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .order-item {
+            transition: all 0.3s ease;
+        }
+
+        .order-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .order-date, .order-total, .order-status {
+            margin: 0.25rem 0;
+            color: #666;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: capitalize;
+        }
+
+        .status-badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-badge.processing {
+            background: #cce7ff;
+            color: #004085;
+        }
+
+        .status-badge.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .order-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 150px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            color: #666;
+        }
+
+        .order-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+        }
+
+        .order-items-list {
+            margin: 1.5rem 0;
+        }
+
+        .order-item-detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-summary {
+            border-top: 2px solid #ddd;
+            padding-top: 1rem;
+            text-align: right;
+        }
+
+        .summary-total {
+            font-size: 1.2rem;
+        }
+    </style>
+</body>
+</html>

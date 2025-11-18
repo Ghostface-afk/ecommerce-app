@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - E-Commerce Store</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-logo">🛒 ShopEasy Admin</h1>
+            <div class="nav-links">
+                <a href="index.html">Store Front</a>
+                <a href="products.html">Products</a>
+                <a href="orders.html">Orders</a>
+                <a href="admin.html" class="active">Admin</a>
+                <a href="#" id="auth-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="admin-container">
+            <h2>Admin Dashboard</h2>
+            
+            <!-- Quick Stats -->
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <h3 id="total-orders">-</h3>
+                    <p>Total Orders</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="queue-orders">-</h3>
+                    <p>Orders in Queue</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="total-products">-</h3>
+                    <p>Total Products</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="total-users">-</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+            
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="openAdminTab('orders')">Orders Queue</button>
+                <button class="tab-btn" onclick="openAdminTab('products')">Manage Products</button>
+                <button class="tab-btn" onclick="openAdminTab('users')">Manage Users</button>
+                <button class="tab-btn" onclick="openAdminTab('categories')">Manage Categories</button>
+                <button class="tab-btn" onclick="openAdminTab('upload')">Upload Image</button>
+            </div>
+
+            <!-- Orders Tab -->
+            <div id="orders-tab" class="tab-content active">
+                <div class="tab-header">
+                    <h3>Order Processing Queue</h3>
+                    <button onclick="processNextOrder()" class="btn btn-primary">Process Next Order</button>
+                </div>
+                <div id="orders-queue">
+                    <!-- Orders queue will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Products Tab -->
+            <div id="products-tab" class="tab-content">
+                <div class="tab-header">
+                    <h3>Manage Products</h3>
+                    <button onclick="showAddProductForm()" class="btn btn-primary">Add New Product</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="product-search" placeholder="Search products..." onkeyup="searchAdminProducts()">
+                </div>
+                <div id="admin-products-list">
+                    <!-- Products management will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="users-tab" class="tab-content">
+                <div class="tab-header">
+                    <h3>User Management</h3>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="user-search" placeholder="Search users by email or name..." onkeyup="searchUsers()">
+                </div>
+                <div id="users-list">
+                    <!-- Users will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Categories Tab -->
+            <div id="categories-tab" class="tab-content">
+                <div class="tab-header">
+                    <h3>Manage Categories</h3>
+                </div>
+                <form id="add-category-form" class="inline-form">
+                    <input type="text" id="category-name" placeholder="Category Name" required>
+                    <input type="text" id="category-desc" placeholder="Description">
+                    <button type="submit" class="btn btn-primary">Add Category</button>
+                </form>
+                <div id="categories-list">
+                    <!-- Categories will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="upload-tab" class="tab-content">
+                <div class="tab-header">
+                    <h3>Upload Product Image</h3>
+                </div>
+                <form id="upload-image-form" class="upload-form">
+                    <div class="form-group">
+                        <label for="image-file">Select Image:</label>
+                        <input type="file" id="image-file" accept="image/*" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="image-filename">File Name (optional):</label>
+                        <input type="text" id="image-filename" placeholder="Custom file name">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload Image</button>
+                </form>
+                <div id="upload-result"></div>
+                <div id="image-preview" style="display:none; margin-top: 1rem;">
+                    <h4>Image Preview:</h4>
+                    <img id="preview-img" style="max-width: 300px; max-height: 300px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="add-product-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddProductModal()">&times;</span>
+            <h3>Add New Product</h3>
+            <form id="add-product-form">
+                <div class="form-group">
+                    <label for="product-name">Product Name:</label>
+                    <input type="text" id="product-name" placeholder="Product Name" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-desc">Description:</label>
+                    <textarea id="product-desc" placeholder="Description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="product-price">Price:</label>
+                    <input type="number" id="product-price" placeholder="Price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-stock">Stock Quantity:</label>
+                    <input type="number" id="product-stock" placeholder="Stock Quantity" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-image">Image URL:</label>
+                    <input type="text" id="product-image" placeholder="Image URL">
+                </div>
+                <div class="form-group">
+                    <label for="product-category">Category:</label>
+                    <select id="product-category" required>
+                        <option value="">Select Category</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Product</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
