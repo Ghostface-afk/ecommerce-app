@@ -3,31 +3,140 @@ let currentUser = null;
 let products = [];
 let cart = [];
 let categories = [];
+let allUsers = [];
+let allProducts = [];
+let sidebarCollapsed = false;
 
-// Utility functions
-function showMessage(elementId, message, type = 'error') {
-    const element = document.getElementById(elementId);
-    element.textContent = message;
-    element.className = `message ${type}`;
-    element.style.display = 'block';
-    
-    if (type === 'success') {
-        setTimeout(() => element.style.display = 'none', 3000);
+// Initialize the application
+function initApp() {
+    initializeSidebar();
+    setupEventListeners();
+    checkAuthentication();
+}
+
+// Sidebar functionality
+function initializeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const toggleBtn = document.getElementById('toggleSidebar');
+    const mobileToggle = document.getElementById('mobileToggle');
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+
+    // Toggle sidebar
+    function toggleSidebar() {
+        sidebarCollapsed = !sidebarCollapsed;
+        sidebar.classList.toggle('collapsed', sidebarCollapsed);
+        mainContent.classList.toggle('collapsed', sidebarCollapsed);
+        mainContent.classList.toggle('expanded', !sidebarCollapsed);
+        
+        localStorage.setItem('sidebarCollapsed', sidebarCollapsed);
+    }
+
+    // Mobile toggle
+    function toggleMobileSidebar() {
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    }
+
+    // Event listeners
+    toggleBtn.addEventListener('click', toggleSidebar);
+    mobileToggle.addEventListener('click', toggleMobileSidebar);
+    overlay.addEventListener('click', toggleMobileSidebar);
+
+    // Load saved state
+    const savedState = localStorage.getItem('sidebarCollapsed');
+    if (savedState === 'true') {
+        sidebarCollapsed = true;
+        sidebar.classList.add('collapsed');
+        mainContent.classList.add('collapsed');
+    } else {
+        mainContent.classList.add('expanded');
+    }
+
+    // Close sidebar on mobile when clicking a link
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                toggleMobileSidebar();
+            }
+        });
+    });
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    // Auth forms
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    document.getElementById('register-form').addEventListener('submit', handleRegister);
+    document.getElementById('checkout-form').addEventListener('submit', handleCheckout);
+    document.getElementById('add-product-form').addEventListener('submit', handleAddProduct);
+    document.getElementById('add-category-form').addEventListener('submit', handleAddCategory);
+    document.getElementById('upload-image-form').addEventListener('submit', handleImageUpload);
+
+    // Image preview
+    document.getElementById('image-file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('preview-img').src = e.target.result;
+                document.getElementById('image-preview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Close modals
+    document.querySelectorAll('.close').forEach(closeBtn => {
+        closeBtn.addEventListener('click', closeModal);
+    });
+
+    // Window click handlers
+    window.onclick = function(event) {
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modal => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    };
+}
+
+// Authentication check
+function checkAuthentication() {
+    const token = getToken();
+    if (token) {
+        verifyToken(token);
+    } else {
+        showPage('login');
     }
 }
 
-function getToken() {
-    return localStorage.getItem('token');
+// Verify token and get user info
+async function verifyToken(token) {
+    try {
+        const response = await fetch(`${API_BASE}/users/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const user = await response.json();
+            currentUser = user;
+            updateNavigation();
+            showPage('products');
+        } else {
+            throw new Error('Invalid token');
+        }
+    } catch (error) {
+        console.error('Token verification failed:', error);
+        removeToken();
+        showPage('login');
+    }
 }
 
-function setToken(token) {
-    localStorage.setItem('token', token);
-}
-
-function removeToken() {
-    localStorage.removeItem('token');
-}
-
+// Enhanced page navigation
 function showPage(pageId) {
     // Hide all pages
     document.querySelectorAll('.page').forEach(page => {
@@ -35,9 +144,34 @@ function showPage(pageId) {
     });
     
     // Show selected page
-    document.getElementById(`${pageId}-page`).classList.add('active');
+    const targetPage = document.getElementById(`${pageId}-page`);
+    if (targetPage) {
+        targetPage.classList.add('active');
+    }
+    
+    // Update page title
+    updatePageTitle(pageId);
     
     // Load page-specific data
+    loadPageData(pageId);
+}
+
+function updatePageTitle(pageId) {
+    const pageTitle = document.getElementById('page-title');
+    const titles = {
+        'products': 'Our Products',
+        'cart': 'Shopping Cart',
+        'orders': 'My Orders',
+        'admin': 'Admin Dashboard',
+        'login': 'Login to Your Account',
+        'register': 'Create Account',
+        'checkout': 'Checkout'
+    };
+    
+    pageTitle.textContent = titles[pageId] || 'ShopEasy';
+}
+
+function loadPageData(pageId) {
     switch(pageId) {
         case 'products':
             loadProducts();
@@ -53,13 +187,108 @@ function showPage(pageId) {
         case 'admin':
             if (currentUser && currentUser.role === 'admin') {
                 loadAdminData();
+            } else {
+                showPage('products');
             }
             break;
     }
 }
 
-// Authentication
-document.getElementById('login-form').addEventListener('submit', async (e) => {
+// Enhanced navigation update
+function updateNavigation() {
+    const authLink = document.getElementById('auth-link');
+    const authText = document.getElementById('auth-text');
+    const adminLink = document.getElementById('admin-link');
+    const userInfo = document.getElementById('user-info');
+    const userName = document.getElementById('user-name');
+    const userRole = document.getElementById('user-role');
+    
+    if (currentUser) {
+        // Update auth link for logout
+        authText.textContent = 'Logout';
+        authLink.onclick = handleLogout;
+        
+        // Show user info
+        userInfo.style.display = 'flex';
+        userName.textContent = currentUser.name;
+        userRole.textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+        
+        // Show/hide admin link
+        if (currentUser.role === 'admin') {
+            adminLink.style.display = 'flex';
+        } else {
+            adminLink.style.display = 'none';
+        }
+    } else {
+        // Reset to login state
+        authText.textContent = 'Login';
+        authLink.onclick = () => showPage('login');
+        userInfo.style.display = 'none';
+        adminLink.style.display = 'none';
+    }
+}
+
+// Utility functions
+function getToken() {
+    return localStorage.getItem('token');
+}
+
+function setToken(token) {
+    localStorage.setItem('token', token);
+}
+
+function removeToken() {
+    localStorage.removeItem('token');
+}
+
+function showMessage(elementId, message, type = 'error') {
+    const element = document.getElementById(elementId);
+    element.textContent = message;
+    element.className = `message ${type}`;
+    element.style.display = 'block';
+    
+    if (type === 'success') {
+        setTimeout(() => element.style.display = 'none', 3000);
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Remove existing notifications
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notif => notif.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 4px;
+        color: white;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    if (type === 'success') {
+        notification.style.background = '#4caf50';
+    } else if (type === 'error') {
+        notification.style.background = '#f44336';
+    } else {
+        notification.style.background = '#2196f3';
+    }
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 4000);
+}
+
+// Auth handlers
+async function handleLogin(e) {
     e.preventDefault();
     
     const email = document.getElementById('login-email').value;
@@ -86,9 +315,9 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     } catch (error) {
         showMessage('login-message', 'Login failed: ' + error.message);
     }
-});
+}
 
-document.getElementById('register-form').addEventListener('submit', async (e) => {
+async function handleRegister(e) {
     e.preventDefault();
     
     const formData = {
@@ -117,34 +346,16 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     } catch (error) {
         showMessage('register-message', 'Registration failed: ' + error.message);
     }
-});
-
-function updateNavigation() {
-    const authLink = document.getElementById('auth-link');
-    const adminLink = document.getElementById('admin-link');
-    
-    if (currentUser) {
-        authLink.textContent = 'Logout';
-        authLink.onclick = logout;
-        
-        if (currentUser.role === 'admin') {
-            adminLink.style.display = 'block';
-        }
-    } else {
-        authLink.textContent = 'Login';
-        authLink.onclick = () => showPage('login');
-        adminLink.style.display = 'none';
-    }
 }
 
-function logout() {
+function handleLogout() {
     currentUser = null;
     removeToken();
     updateNavigation();
     showPage('login');
 }
 
-// Products
+// Products functions
 async function loadProducts() {
     try {
         const response = await fetch(`${API_BASE}/products`);
@@ -178,7 +389,7 @@ function displayProducts(productsToDisplay) {
             <div class="product-price">$${product.price}</div>
             <div class="product-actions">
                 <button class="btn btn-primary" onclick="event.stopPropagation(); addToCart(${product.product_id})">
-                    Add to Cart
+                    <i class="fas fa-cart-plus"></i> Add to Cart
                 </button>
             </div>
         </div>
@@ -241,7 +452,9 @@ function displayCart() {
                     <button class="quantity-btn" onclick="updateCartItem(${item.cart_id}, ${item.quantity + 1})">+</button>
                 </div>
                 <div>$${(item.price * item.quantity).toFixed(2)}</div>
-                <button class="btn btn-danger" onclick="removeFromCart(${item.cart_id})">Remove</button>
+                <button class="btn btn-danger" onclick="removeFromCart(${item.cart_id})">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
             </div>
         </div>
     `).join('');
@@ -270,10 +483,11 @@ async function addToCart(productId) {
         if (response.ok) {
             loadCart();
             loadUndoInfo();
-            alert('Product added to cart!');
+            showNotification('Product added to cart!', 'success');
         }
     } catch (error) {
         console.error('Failed to add to cart:', error);
+        showNotification('Failed to add product to cart', 'error');
     }
 }
 
@@ -333,6 +547,7 @@ async function clearCart() {
         if (response.ok) {
             loadCart();
             loadUndoInfo();
+            showNotification('Cart cleared successfully!', 'success');
         }
     } catch (error) {
         console.error('Failed to clear cart:', error);
@@ -380,7 +595,7 @@ async function undoLastAction() {
             const result = await response.json();
             loadCart();
             loadUndoInfo();
-            alert(`Undid ${result.undone_action}`);
+            showNotification(`Undid ${result.undone_action}`, 'success');
         }
     } catch (error) {
         console.error('Failed to undo:', error);
@@ -388,7 +603,7 @@ async function undoLastAction() {
 }
 
 // Checkout
-async function checkout() {
+function checkout() {
     showPage('checkout');
     
     const summary = document.getElementById('checkout-summary');
@@ -410,7 +625,7 @@ async function checkout() {
     `;
 }
 
-document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+async function handleCheckout(e) {
     e.preventDefault();
     
     const paymentMethod = document.getElementById('payment-method').value;
@@ -429,17 +644,17 @@ document.getElementById('checkout-form').addEventListener('submit', async (e) =>
         const data = await response.json();
         
         if (response.ok) {
-            alert(`Order placed successfully! Order ID: ${data.order_id}`);
+            showNotification(`Order placed successfully! Order ID: ${data.order_id}`, 'success');
             cart = [];
             updateCartCount();
-            showPage('orders');
+            setTimeout(() => showPage('orders'), 2000);
         } else {
-            alert('Order failed: ' + data.message);
+            showNotification('Order failed: ' + data.message, 'error');
         }
     } catch (error) {
-        alert('Checkout failed: ' + error.message);
+        showNotification('Checkout failed: ' + error.message, 'error');
     }
-});
+}
 
 // Orders
 async function loadOrders() {
@@ -477,7 +692,7 @@ function displayOrders(orders) {
                 <p>Status: ${order.status}</p>
             </div>
             <button class="btn btn-primary" onclick="viewOrderDetails(${order.order_id})">
-                View Details
+                <i class="fas fa-eye"></i> View Details
             </button>
         </div>
     `).join('');
@@ -539,6 +754,11 @@ function openAdminTab(tabName) {
     
     // Add active class to clicked button
     event.currentTarget.classList.add('active');
+    
+    // Load data for specific tabs
+    if (tabName === 'users') {
+        loadUsers();
+    }
 }
 
 async function loadAdminData() {
@@ -566,19 +786,23 @@ async function loadOrdersQueue() {
 function displayOrdersQueue(queueInfo) {
     const container = document.getElementById('orders-queue');
     
-    container.innerHTML = `
-        <p>Orders in queue: ${queueInfo.queue_length}</p>
-        ${queueInfo.orders_in_queue.map(order => `
-            <div class="cart-item">
-                <div class="cart-item-info">
-                    <h4>Order #${order.order_id}</h4>
-                    <p>User: ${order.user_id}</p>
-                    <p>Total: $${order.total_amount}</p>
-                    <p>Position: ${order.position}</p>
-                </div>
+    if (!queueInfo.orders_in_queue || queueInfo.orders_in_queue.length === 0) {
+        container.innerHTML = '<p>No orders in the processing queue.</p>';
+        return;
+    }
+    
+    container.innerHTML = queueInfo.orders_in_queue.map(order => `
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <h4>Order #${order.order_id}</h4>
+                <p>User ID: ${order.user_id}</p>
+                <p>Total: $${order.total_amount}</p>
+                <p>Items: ${order.items.length} products</p>
+                <p>Position in queue: ${order.position}</p>
+                <p>Added: ${new Date(order.timestamp).toLocaleString()}</p>
             </div>
-        `).join('')}
-    `;
+        </div>
+    `).join('');
 }
 
 async function processNextOrder() {
@@ -591,11 +815,11 @@ async function processNextOrder() {
         
         if (response.ok) {
             const result = await response.json();
-            alert(result.message);
+            showNotification(result.message, 'success');
             loadOrdersQueue();
         }
     } catch (error) {
-        console.error('Failed to process order:', error);
+        showNotification('Failed to process order: ' + error.message, 'error');
     }
 }
 
@@ -603,8 +827,9 @@ async function loadAdminProducts() {
     try {
         const response = await fetch(`${API_BASE}/products`);
         if (response.ok) {
-            const products = await response.json();
-            displayAdminProducts(products.products || products);
+            const data = await response.json();
+            allProducts = data.products || data;
+            displayAdminProducts(allProducts);
         }
     } catch (error) {
         console.error('Failed to load products:', error);
@@ -614,6 +839,11 @@ async function loadAdminProducts() {
 function displayAdminProducts(products) {
     const container = document.getElementById('admin-products-list');
     
+    if (!products || products.length === 0) {
+        container.innerHTML = '<p>No products found.</p>';
+        return;
+    }
+    
     container.innerHTML = products.map(product => `
         <div class="cart-item">
             <div class="cart-item-info">
@@ -622,7 +852,9 @@ function displayAdminProducts(products) {
                 <p>${product.description}</p>
             </div>
             <div>
-                <button class="btn btn-danger" onclick="deleteProduct(${product.product_id})">Delete</button>
+                <button class="btn btn-danger" onclick="deleteProduct(${product.product_id})">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
             </div>
         </div>
     `).join('');
@@ -639,11 +871,11 @@ async function deleteProduct(productId) {
         });
         
         if (response.ok) {
-            alert('Product deleted successfully');
+            showNotification('Product deleted successfully', 'success');
             loadAdminProducts();
         }
     } catch (error) {
-        console.error('Failed to delete product:', error);
+        showNotification('Failed to delete product: ' + error.message, 'error');
     }
 }
 
@@ -672,7 +904,7 @@ async function loadCategoriesForSelect() {
     }
 }
 
-document.getElementById('add-product-form').addEventListener('submit', async (e) => {
+async function handleAddProduct(e) {
     e.preventDefault();
     
     const formData = {
@@ -696,17 +928,18 @@ document.getElementById('add-product-form').addEventListener('submit', async (e)
         });
         
         if (response.ok) {
-            alert('Product added successfully');
+            showNotification('Product added successfully', 'success');
             closeAddProductModal();
+            document.getElementById('add-product-form').reset();
             loadAdminProducts();
         } else {
             const error = await response.json();
-            alert('Failed to add product: ' + error.message);
+            showNotification('Failed to add product: ' + error.message, 'error');
         }
     } catch (error) {
-        alert('Failed to add product: ' + error.message);
+        showNotification('Failed to add product: ' + error.message, 'error');
     }
-});
+}
 
 async function loadCategories() {
     try {
@@ -729,11 +962,16 @@ function displayCategories(categories) {
                 <h4>${cat.category_name}</h4>
                 <p>${cat.description || 'No description'}</p>
             </div>
+            <div class="category-actions">
+                <button class="btn btn-danger" onclick="deleteCategory(${cat.category_id})">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            </div>
         </div>
     `).join('');
 }
 
-document.getElementById('add-category-form').addEventListener('submit', async (e) => {
+async function handleAddCategory(e) {
     e.preventDefault();
     
     const formData = {
@@ -753,24 +991,157 @@ document.getElementById('add-category-form').addEventListener('submit', async (e
         });
         
         if (response.ok) {
-            alert('Category added successfully');
+            showNotification('Category added successfully', 'success');
             document.getElementById('add-category-form').reset();
             loadCategories();
+        } else {
+            const error = await response.json();
+            showNotification('Failed to add category: ' + error.message, 'error');
         }
     } catch (error) {
-        alert('Failed to add category: ' + error.message);
+        showNotification('Failed to add category: ' + error.message, 'error');
     }
-});
+}
+
+async function deleteCategory(categoryId) {
+    if (!confirm('Are you sure you want to delete this category?')) return;
+    
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/categories/${categoryId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            showNotification('Category deleted successfully', 'success');
+            loadCategories();
+        } else {
+            const data = await response.json();
+            showNotification('Failed to delete category: ' + data.message, 'error');
+        }
+    } catch (error) {
+        showNotification('Failed to delete category: ' + error.message, 'error');
+    }
+}
+
+// User Management
+async function loadUsers() {
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/users`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            allUsers = await response.json();
+            displayUsers(allUsers);
+        }
+    } catch (error) {
+        console.error('Failed to load users:', error);
+    }
+}
+
+function displayUsers(users) {
+    const container = document.getElementById('users-list');
+    
+    if (!users || users.length === 0) {
+        container.innerHTML = '<p>No users found.</p>';
+        return;
+    }
+    
+    container.innerHTML = users.map(user => `
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <h4>${user.name} (${user.email})</h4>
+                <p>Phone: ${user.phone || 'N/A'} | Role: 
+                    <span class="role-badge ${user.role}">${user.role}</span>
+                </p>
+                <p>Registered: ${new Date(user.date_created).toLocaleDateString()}</p>
+                <p>Address: ${user.address || 'N/A'}</p>
+            </div>
+            <div class="user-actions">
+                <select id="role-select-${user.user_id}" onchange="updateUserRole(${user.user_id})">
+                    <option value="customer" ${user.role === 'customer' ? 'selected' : ''}>Customer</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                </select>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="showUserDetails(${user.user_id})">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function searchUsers() {
+    const query = document.getElementById('user-search').value.toLowerCase();
+    
+    if (!query) {
+        displayUsers(allUsers);
+        return;
+    }
+    
+    const filteredUsers = allUsers.filter(user => 
+        user.name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        (user.phone && user.phone.includes(query)) ||
+        user.role.toLowerCase().includes(query)
+    );
+    
+    displayUsers(filteredUsers);
+}
+
+async function updateUserRole(userId) {
+    const select = document.getElementById(`role-select-${userId}`);
+    const newRole = select.value;
+    const user = allUsers.find(u => u.user_id === userId);
+    
+    if (!confirm(`Change ${user.name}'s role from ${user.role} to ${newRole}?`)) {
+        // Reset to original value
+        select.value = user.role;
+        return;
+    }
+    
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/users/${userId}/role`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ role: newRole })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Update local data
+            user.role = newRole;
+            showNotification(`Successfully updated ${user.name}'s role to ${newRole}`, 'success');
+        } else {
+            showNotification('Failed to update role: ' + data.message, 'error');
+            // Reset select to original value
+            select.value = user.role;
+        }
+    } catch (error) {
+        showNotification('Failed to update role: ' + error.message, 'error');
+        // Reset select to original value
+        select.value = user.role;
+    }
+}
 
 // Image Upload
-document.getElementById('upload-image-form').addEventListener('submit', async (e) => {
+async function handleImageUpload(e) {
     e.preventDefault();
     
     const fileInput = document.getElementById('image-file');
     const fileName = document.getElementById('image-filename').value;
     
     if (!fileInput.files[0]) {
-        alert('Please select a file');
+        showNotification('Please select a file', 'error');
         return;
     }
     
@@ -797,10 +1168,17 @@ document.getElementById('upload-image-form').addEventListener('submit', async (e
             if (response.ok) {
                 document.getElementById('upload-result').innerHTML = `
                     <div class="message success">
-                        Image uploaded successfully!<br>
-                        URL: <input type="text" value="${result.url}" readonly style="width:100%;margin-top:0.5rem;">
+                        <h4>Image uploaded successfully!</h4>
+                        <p><strong>URL:</strong></p>
+                        <input type="text" value="${result.url}" readonly 
+                               style="width:100%;padding:0.5rem;margin:0.5rem 0;border:1px solid #ddd;border-radius:4px;">
+                        <p><strong>File ID:</strong> ${result.fileId}</p>
+                        <button onclick="copyToClipboard('${result.url}')" class="btn btn-secondary" style="margin-top:0.5rem;">
+                            <i class="fas fa-copy"></i> Copy URL
+                        </button>
                     </div>
                 `;
+                showNotification('Image uploaded successfully!', 'success');
             } else {
                 document.getElementById('upload-result').innerHTML = `
                     <div class="message error">
@@ -818,7 +1196,15 @@ document.getElementById('upload-image-form').addEventListener('submit', async (e
     };
     
     reader.readAsDataURL(fileInput.files[0]);
-});
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification('URL copied to clipboard!', 'success');
+    }).catch(err => {
+        showNotification('Failed to copy URL', 'error');
+    });
+}
 
 // Product Details Modal
 async function showProductDetails(productId) {
@@ -840,7 +1226,7 @@ async function showProductDetails(productId) {
                 <p><strong>Price:</strong> $${product.price}</p>
                 <p><strong>Stock:</strong> ${product.stock_quantity} available</p>
                 <button class="btn btn-primary" onclick="addToCart(${product.product_id}); closeModal()">
-                    Add to Cart
+                    <i class="fas fa-cart-plus"></i> Add to Cart
                 </button>
             `;
             
@@ -853,51 +1239,8 @@ async function showProductDetails(productId) {
 
 function closeModal() {
     document.getElementById('product-modal').style.display = 'none';
+    document.getElementById('add-product-modal').style.display = 'none';
 }
 
-// Close modal when clicking outside
-window.onclick = function(event) {
-    const modal = document.getElementById('product-modal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-    
-    const addProductModal = document.getElementById('add-product-modal');
-    if (event.target === addProductModal) {
-        addProductModal.style.display = 'none';
-    }
-}
-
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if user is logged in
-    const token = getToken();
-    if (token) {
-        // Verify token and get user info
-        fetch(`${API_BASE}/users/me`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                removeToken();
-                throw new Error('Invalid token');
-            }
-        })
-        .then(user => {
-            currentUser = user;
-            updateNavigation();
-            showPage('products');
-        })
-        .catch(error => {
-            console.error('Token verification failed:', error);
-            showPage('login');
-        });
-    } else {
-        showPage('login');
-    }
-    
-    // Close modal with X button
-    document.querySelector('.close').addEventListener('click', closeModal);
-});
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', initApp);
