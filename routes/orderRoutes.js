@@ -5,6 +5,27 @@ const Payment = require('../models/paymentModel');
 const Cart = require('../models/cartModel');
 const { orderProcessingQueue } = require('../models/dataStructures');
 const { verifyToken, authorizeRoles } = require('../utils/auth');
+const orderQueue = require('../utils/orderQueue');
+
+router.post('/create', async (req, res) => {
+    try {
+        const { userId, items, total } = req.body;
+
+        // Save order in database
+        const newOrder = await Orders.createNew(userId, items, total);
+
+        // Add to processing queue
+        orderQueue.enqueue(newOrder);
+
+        res.json({
+            message: "Order received and queued for processing",
+            order: newOrder
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Place order - adds to processing queue
 router.post('/place', verifyToken, async (req, res) => {
