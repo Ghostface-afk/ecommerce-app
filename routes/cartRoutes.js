@@ -3,6 +3,51 @@ const router = express.Router();
 const Cart = require('../models/cartModel');
 const { userActionStack } = require('../models/dataStructures');
 const { verifyToken } = require('../utils/auth');
+const cartUndoStack = require('../utils/cartHistory');
+
+//Add to 
+router.post('/add', async (req, res) => {
+    try {
+        const { userId, productId, quantity } = req.body;
+
+        // 1. Add to DB (pseudo)
+        await Cart.addItem(userId, productId, quantity);
+
+        // 2. Record undo history
+        cartUndoStack.push({
+            action: "ADD",
+            userId,
+            productId,
+            quantity
+        });
+
+        res.json({ message: "Item added to cart" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/undo', async (req, res) => {
+    try {
+        const lastAction = cartUndoStack.pop();
+
+        if (!lastAction) {
+            return res.json({ message: "Nothing to undo" });
+        }
+
+        if (lastAction.action === "ADD") {
+            // Remove item from DB
+            await Cart.removeItem(
+                lastAction.userId,
+                lastAction.productId
+            );
+        }
+
+        res.json({ message: "Last cart action undone" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Helper to push action to stack
 const pushAction = (action, data) => {

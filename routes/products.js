@@ -1,6 +1,38 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/productModel');
+const productCache = require('../utils/productCache');
+
+router.get('/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        // 1. Check cache
+        const cached = productCache.get(id);
+        if (cached) {
+            return res.json({
+                product: cached,
+                source: "cache"
+            });
+        }
+
+        // 2. Fetch from DB
+        const product = await Product.getById(id);
+
+        if (!product) return res.status(404).json({ message: "Product not found" });
+
+        // 3. Store in cache
+        productCache.set(id, product);
+
+        res.json({
+            product,
+            source: "database"
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // GET all products
 router.get('/', async (req, res) => {
