@@ -326,6 +326,54 @@
                 </form>
             </div>
         </div>
+
+        <!-- Edit Product Modal -->
+<div id="edit-product-modal" class="modal">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <span class="close" onclick="closeEditProductModal()">&times;</span>
+        <h3>Edit Product</h3>
+        <form id="edit-product-form">
+            <input type="hidden" id="edit-product-id">
+            <div class="form-group">
+                <label for="edit-product-name">Product Name:</label>
+                <input type="text" id="edit-product-name" placeholder="Product Name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-desc">Description:</label>
+                <textarea id="edit-product-desc" placeholder="Description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-price">Price (Ksh):</label>
+                <input type="number" id="edit-product-price" placeholder="Price" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-stock">Stock Quantity:</label>
+                <input type="number" id="edit-product-stock" placeholder="Stock Quantity" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-image">Image URL:</label>
+                <input type="text" id="edit-product-image" placeholder="Image URL">
+            </div>
+            <div class="form-group">
+                <label for="edit-product-category">Category:</label>
+                <select id="edit-product-category" required>
+                    <option value="">Select Category</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-product-status">Status:</label>
+                <select id="edit-product-status" required>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Update Product</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditProductModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
     </main>
 
     <script src="app.js"></script>

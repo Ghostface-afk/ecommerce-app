@@ -370,6 +370,7 @@ async function loadProducts() {
     }
 }
 
+// Enhanced Product Display with Ksh Currency
 function displayProducts(productsToDisplay) {
     const grid = document.getElementById('products-grid');
     
@@ -386,7 +387,7 @@ function displayProducts(productsToDisplay) {
             }
             <h3>${product.name}</h3>
             <p>${product.description || 'No description available'}</p>
-            <div class="product-price">$${product.price}</div>
+            <div class="product-price">${product.price}</div>
             <div class="product-actions">
                 <button class="btn btn-primary" onclick="event.stopPropagation(); addToCart(${product.product_id})">
                     <i class="fas fa-cart-plus"></i> Add to Cart
@@ -425,6 +426,7 @@ async function loadCart() {
     }
 }
 
+// Enhanced Cart Display with Ksh Currency
 function displayCart() {
     const container = document.getElementById('cart-items');
     const totalElement = document.getElementById('cart-total');
@@ -443,15 +445,15 @@ function displayCart() {
         <div class="cart-item">
             <div class="cart-item-info">
                 <h4>${item.name}</h4>
-                <p>$${item.price} each</p>
+                <p>Ksh ${item.price} each</p>
             </div>
             <div class="cart-item-actions">
                 <div class="quantity-controls">
                     <button class="quantity-btn" onclick="updateCartItem(${item.cart_id}, ${item.quantity - 1})">-</button>
-                    <span>${item.quantity}</span>
+                    <span style="min-width: 30px; text-align: center;">${item.quantity}</span>
                     <button class="quantity-btn" onclick="updateCartItem(${item.cart_id}, ${item.quantity + 1})">+</button>
                 </div>
-                <div>$${(item.price * item.quantity).toFixed(2)}</div>
+                <div style="font-weight: bold;">Ksh ${(item.price * item.quantity).toFixed(2)}</div>
                 <button class="btn btn-danger" onclick="removeFromCart(${item.cart_id})">
                     <i class="fas fa-trash"></i> Remove
                 </button>
@@ -463,6 +465,7 @@ function displayCart() {
     checkoutBtn.disabled = false;
 }
 
+// Enhanced Add to Cart with immediate feedback
 async function addToCart(productId) {
     const token = getToken();
     if (!token) {
@@ -481,9 +484,12 @@ async function addToCart(productId) {
         });
         
         if (response.ok) {
-            loadCart();
+            await loadCart(); // Wait for cart to reload
             loadUndoInfo();
             showNotification('Product added to cart!', 'success');
+            
+            // Update cart count immediately
+            updateCartCount();
         }
     } catch (error) {
         console.error('Failed to add to cart:', error);
@@ -491,9 +497,11 @@ async function addToCart(productId) {
     }
 }
 
+
+// Enhanced Update Cart Item
 async function updateCartItem(cartId, quantity) {
     if (quantity < 1) {
-        removeFromCart(cartId);
+        await removeFromCart(cartId);
         return;
     }
     
@@ -509,14 +517,18 @@ async function updateCartItem(cartId, quantity) {
         });
         
         if (response.ok) {
-            loadCart();
+            await loadCart(); // Wait for cart to reload
             loadUndoInfo();
+            
+            // Update cart count immediately
+            updateCartCount();
         }
     } catch (error) {
         console.error('Failed to update cart:', error);
     }
 }
 
+// Enhanced Remove from Cart
 async function removeFromCart(cartId) {
     const token = getToken();
     try {
@@ -526,11 +538,16 @@ async function removeFromCart(cartId) {
         });
         
         if (response.ok) {
-            loadCart();
+            await loadCart(); // Wait for cart to reload
             loadUndoInfo();
+            showNotification('Product removed from cart', 'success');
+            
+            // Update cart count immediately
+            updateCartCount();
         }
     } catch (error) {
         console.error('Failed to remove from cart:', error);
+        showNotification('Failed to remove product from cart', 'error');
     }
 }
 
@@ -554,9 +571,20 @@ async function clearCart() {
     }
 }
 
+// Enhanced Cart Count Management
 function updateCartCount() {
     const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-    document.getElementById('cart-count').textContent = count;
+    const cartCountElement = document.getElementById('cart-count');
+    cartCountElement.textContent = count;
+    
+    // Add animation when count changes
+    if (count > parseInt(cartCountElement.dataset.prevCount || 0)) {
+        cartCountElement.style.transform = 'scale(1.3)';
+        setTimeout(() => {
+            cartCountElement.style.transform = 'scale(1)';
+        }, 300);
+    }
+    cartCountElement.dataset.prevCount = count;
 }
 
 // Undo functionality
@@ -602,7 +630,7 @@ async function undoLastAction() {
     }
 }
 
-// Checkout
+// Enhanced Checkout Summary with Ksh
 function checkout() {
     showPage('checkout');
     
@@ -612,17 +640,38 @@ function checkout() {
     summary.innerHTML = `
         <h3>Order Summary</h3>
         ${cart.map(item => `
-            <div style="display:flex;justify-content:space-between;margin:0.5rem 0;">
+            <div style="display:flex;justify-content:space-between;margin:0.5rem 0;padding:0.5rem;background:#f8f9fa;border-radius:6px;">
                 <span>${item.name} x ${item.quantity}</span>
-                <span>$${(item.price * item.quantity).toFixed(2)}</span>
+                <span style="font-weight:bold;">Ksh ${(item.price * item.quantity).toFixed(2)}</span>
             </div>
         `).join('')}
         <hr>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:1.1rem;padding:1rem 0;">
             <span>Total:</span>
-            <span>$${total.toFixed(2)}</span>
+            <span>Ksh ${total.toFixed(2)}</span>
         </div>
     `;
+}
+
+// Initialize tooltips
+function initializeTooltips() {
+    const navLinks = document.querySelectorAll('.nav-link');
+    const tooltips = {
+        'products': 'Products',
+        'cart': 'Shopping Cart',
+        'orders': 'My Orders',
+        'admin': 'Admin Dashboard',
+        'auth-link': 'Login/Logout'
+    };
+    
+    navLinks.forEach(link => {
+        const page = link.onclick ? link.onclick.toString().match(/showPage\('(\w+)'\)/)?.[1] : null;
+        if (page && tooltips[page]) {
+            link.setAttribute('data-tooltip', tooltips[page]);
+        } else if (link.id === 'auth-link') {
+            link.setAttribute('data-tooltip', tooltips['auth-link']);
+        }
+    });
 }
 
 async function handleCheckout(e) {
@@ -836,6 +885,7 @@ async function loadAdminProducts() {
     }
 }
 
+// Enhanced Admin Products Display with Edit Button
 function displayAdminProducts(products) {
     const container = document.getElementById('admin-products-list');
     
@@ -848,16 +898,171 @@ function displayAdminProducts(products) {
         <div class="cart-item">
             <div class="cart-item-info">
                 <h4>${product.name}</h4>
-                <p>$${product.price} | Stock: ${product.stock_quantity}</p>
-                <p>${product.description}</p>
+                <p>Ksh ${product.price} | Stock: ${product.stock_quantity}</p>
+                <p>${product.description || 'No description'}</p>
+                <p>Status: <span class="status-badge ${product.status}">${product.status}</span></p>
+                ${product.image_url ? `
+                    <img src="${product.image_url}" alt="${product.name}" 
+                         style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; margin-top: 0.5rem;">
+                ` : ''}
             </div>
-            <div>
+            <div class="product-actions">
+                <button class="btn btn-warning" onclick="editProduct(${product.product_id})">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
                 <button class="btn btn-danger" onclick="deleteProduct(${product.product_id})">
                     <i class="fas fa-trash"></i> Delete
+                </button>
+                <button class="btn btn-secondary" onclick="toggleProductStatus(${product.product_id}, '${product.status}')">
+                    <i class="fas fa-power-off"></i> ${product.status === 'active' ? 'Deactivate' : 'Activate'}
                 </button>
             </div>
         </div>
     `).join('');
+}
+
+// Toggle Product Status
+async function toggleProductStatus(productId, currentStatus) {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    
+    if (!confirm(`Are you sure you want to ${newStatus === 'active' ? 'activate' : 'deactivate'} this product?`)) return;
+    
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/admin/products/${productId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+        
+        if (response.ok) {
+            showNotification(`Product ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`, 'success');
+            loadAdminProducts();
+        } else {
+            const error = await response.json();
+            showNotification('Failed to update product status: ' + error.message, 'error');
+        }
+    } catch (error) {
+        showNotification('Failed to update product status: ' + error.message, 'error');
+    }
+}
+
+// Order Status Management for Admin
+async function loadAllOrders() {
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/orders`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const orders = await response.json();
+            displayAllOrders(orders);
+        }
+    } catch (error) {
+        console.error('Failed to load orders:', error);
+    }
+}
+
+function displayAllOrders(orders) {
+    const container = document.getElementById('orders-queue');
+    
+    if (!orders || orders.length === 0) {
+        container.innerHTML = '<p>No orders found.</p>';
+        return;
+    }
+    
+    container.innerHTML = orders.map(order => `
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <h4>Order #${order.order_id}</h4>
+                <p>Customer: ${order.customer_name || `User ${order.user_id}`}</p>
+                <p>Date: ${new Date(order.order_date).toLocaleDateString()}</p>
+                <p>Total: Ksh ${order.total_amount}</p>
+                <p>Items: ${order.items_count || 'N/A'}</p>
+            </div>
+            <div class="order-actions">
+                <select id="status-select-${order.order_id}" onchange="updateOrderStatus(${order.order_id})">
+                    <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>Pending</option>
+                    <option value="processing" ${order.status === 'processing' ? 'selected' : ''}>Processing</option>
+                    <option value="shipped" ${order.status === 'shipped' ? 'selected' : ''}>Shipped</option>
+                    <option value="completed" ${order.status === 'completed' ? 'selected' : ''}>Completed</option>
+                    <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                </select>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="viewOrderDetails(${order.order_id})">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function updateOrderStatus(orderId) {
+    const select = document.getElementById(`status-select-${orderId}`);
+    const newStatus = select.value;
+    
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/admin/orders/${orderId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+        
+        if (response.ok) {
+            showNotification(`Order status updated to ${newStatus}`, 'success');
+        } else {
+            const data = await response.json();
+            showNotification('Failed to update order status: ' + data.message, 'error');
+            // Reset to original value
+            loadAllOrders();
+        }
+    } catch (error) {
+        showNotification('Failed to update order status: ' + error.message, 'error');
+        // Reset to original value
+        loadAllOrders();
+    }
+}
+
+
+
+// Product Edit Functionality
+let editingProductId = null;
+
+function editProduct(productId) {
+    editingProductId = productId;
+    const product = allProducts.find(p => p.product_id === productId);
+    
+    if (product) {
+        document.getElementById('edit-product-id').value = product.product_id;
+        document.getElementById('edit-product-name').value = product.name;
+        document.getElementById('edit-product-desc').value = product.description || '';
+        document.getElementById('edit-product-price').value = product.price;
+        document.getElementById('edit-product-stock').value = product.stock_quantity;
+        document.getElementById('edit-product-image').value = product.image_url || '';
+        document.getElementById('edit-product-status').value = product.status || 'active';
+        
+        // Load categories for dropdown
+        loadCategoriesForEditSelect().then(() => {
+            document.getElementById('edit-product-category').value = product.category_id || '';
+        });
+        
+        document.getElementById('edit-product-modal').style.display = 'block';
+    }
+}
+
+function closeEditProductModal() {
+    document.getElementById('edit-product-modal').style.display = 'none';
+    editingProductId = null;
+    document.getElementById('edit-product-form').reset();
 }
 
 async function deleteProduct(productId) {
@@ -903,6 +1108,60 @@ async function loadCategoriesForSelect() {
         console.error('Failed to load categories:', error);
     }
 }
+
+async function loadCategoriesForEditSelect() {
+    try {
+        const response = await fetch(`${API_BASE}/categories`);
+        if (response.ok) {
+            const categories = await response.json();
+            const select = document.getElementById('edit-product-category');
+            select.innerHTML = '<option value="">Select Category</option>' +
+                categories.map(cat => 
+                    `<option value="${cat.category_id}">${cat.category_name}</option>`
+                ).join('');
+        }
+    } catch (error) {
+        console.error('Failed to load categories:', error);
+    }
+}
+
+// Handle Edit Product Form Submission
+document.getElementById('edit-product-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = {
+        name: document.getElementById('edit-product-name').value,
+        description: document.getElementById('edit-product-desc').value,
+        price: parseFloat(document.getElementById('edit-product-price').value),
+        stock_quantity: parseInt(document.getElementById('edit-product-stock').value),
+        image_url: document.getElementById('edit-product-image').value || null,
+        category_id: parseInt(document.getElementById('edit-product-category').value) || null,
+        status: document.getElementById('edit-product-status').value
+    };
+    
+    const token = getToken();
+    try {
+        const response = await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showNotification('Product updated successfully', 'success');
+            closeEditProductModal();
+            loadAdminProducts();
+        } else {
+            const error = await response.json();
+            showNotification('Failed to update product: ' + error.message, 'error');
+        }
+    } catch (error) {
+        showNotification('Failed to update product: ' + error.message, 'error');
+    }
+});
 
 async function handleAddProduct(e) {
     e.preventDefault();
@@ -1243,4 +1502,8 @@ function closeModal() {
 }
 
 // Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', initApp);
+// Update initialization to include tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    initApp();
+    initializeTooltips();
+});

@@ -65,4 +65,26 @@ router.post('/categories', verifyToken, authorizeRoles('admin'), async (req, res
     }
 });
 
+// In your adminRoutes.js - Add order status update
+router.put('/orders/:orderId/status', verifyToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
+        
+        // Update order status in database
+        db.run(
+            'UPDATE orders SET status = ? WHERE order_id = ?',
+            [status, orderId],
+            function(err) {
+                if (err) {
+                    return res.status(500).json({ message: 'Failed to update order status', error: err.message });
+                }
+                res.json({ message: 'Order status updated successfully' });
+            }
+        );
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;
